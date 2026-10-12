@@ -1,10 +1,12 @@
 'use strict';
-const { PDFDocument } = PDFLib;
+const { PDFDocument, degrees } = PDFLib;
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
 
 const $ = id => document.getElementById(id);
 let srcBytes = null, srcName = '', pageCount = 0, outputs = [];
 const selected = new Set();
+let pdfDoc = null;
+const rotations = new Map(); // page -> 0/90/180/270 (ajout à la rotation d'origine)
 
 const drop = $('drop'), fileInput = $('file');
 drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
@@ -17,6 +19,8 @@ $('mode').onchange = updateMode;
 $('selAll').onclick = () => { for (let i = 1; i <= pageCount; i++) selected.add(i); refreshSel(); };
 $('selNone').onclick = () => { selected.clear(); refreshSel(); };
 $('go').onclick = split;
+$('rotL').onclick = () => rotateMany(-90);
+$('rotR').onclick = () => rotateMany(90);
 $('zip').onclick = downloadZip;
 
 function showError(msg) { const e = $('error'); e.textContent = msg || ''; e.hidden = !msg; }
@@ -29,30 +33,54 @@ async function load(file) {
   let pdf;
   try { pdf = await pdfjsLib.getDocument({ data: srcBytes.slice() }).promise; }
   catch (e) { return alert('Impossible de lire ce PDF (fichier corrompu ou protégé par mot de passe).'); }
+  pdfDoc = pdf;
   pageCount = pdf.numPages;
-  selected.clear(); outputs = []; $('results').hidden = true;
+  selected.clear(); rotations.clear(); outputs = []; $('results').hidden = true;
   $('fileInfo').textContent = `${file.name} — ${pageCount} page${pageCount > 1 ? 's' : ''}`;
   drop.hidden = true; $('editor').hidden = false;
   updateMode();
-  await renderThumbs(pdf);
+  await renderThumbs();
 }
 
-async function renderThumbs(pdf) {
+async function renderPage(i) {
+  const cell = document.querySelector(`.thumb[data-page="${i}"]`);
+  if (!cell) return;
+  const page = await pdfDoc.getPage(i);
+  const vp = page.getViewport({ scale: 0.3, rotation: (page.rotate + (rotations.get(i) || 0)) % 360 });
+  const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+  await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+  cell.querySelector('.ph').replaceChildren(c);
+  cell.querySelector('.rot').textContent = rotations.get(i) ? `↻ ${rotations.get(i)}°` : '';
+}
+
+function rotatePage(i, delta) {
+  rotations.set(i, ((rotations.get(i) || 0) + delta + 360) % 360);
+  return renderPage(i);
+}
+
+const useSel = () => $('mode').value === 'selection' && selected.size > 0;
+// Pivote les pages sélectionnées, ou toutes si aucune sélection
+function rotateMany(delta) {
+  const pages = useSel() ? [...selected] : Array.from({ length: pageCount }, (_, i) => i + 1);
+  return Promise.all(pages.map(p => rotatePage(p, delta)));
+}
+
+async function renderThumbs() {
   const box = $('thumbs'); box.innerHTML = '';
-  const cells = [];
   for (let i = 1; i <= pageCount; i++) {
     const d = document.createElement('div'); d.className = 'thumb'; d.dataset.page = i;
-    d.innerHTML = `<div class="ph"></div>Page ${i}`;
+    d.innerHTML = `<div class="ph"></div>Page ${i} <span class="rot"></span>
+      <div class="btns"><button type="button" title="Pivoter à gauche">⟲</button><button type="button" title="Pivoter à droite">⟳</button></div>`;
+    const [l, r] = d.querySelectorAll('.btns button');
+    l.onclick = e => { e.stopPropagation(); rotatePage(i, -90); };
+    r.onclick = e => { e.stopPropagation(); rotatePage(i, 90); };
     d.onclick = () => { if ($('mode').value !== 'selection') return; selected.has(i) ? selected.delete(i) : selected.add(i); refreshSel(); };
-    box.appendChild(d); cells.push(d);
+    box.appendChild(d);
   }
+  const doc = pdfDoc;
   for (let i = 1; i <= pageCount; i++) {
-    if (!srcBytes || cells[0].parentNode !== box) return;
-    const page = await pdf.getPage(i);
-    const vp = page.getViewport({ scale: 0.3 });
-    const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
-    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-    cells[i - 1].replaceChild(c, cells[i - 1].firstChild);
+    if (doc !== pdfDoc) return;
+    await renderPage(i);
   }
 }
 
@@ -73,6 +101,7 @@ function updateMode() {
 
 function refreshSel() {
   document.querySelectorAll('.thumb').forEach(t => t.classList.toggle('sel', selected.has(+t.dataset.page)));
+  $('rotHint').textContent = useSel() ? 'Pivote la sélection' : 'Pivote toutes les pages';
   $('selCount').textContent = `${selected.size} page(s) sélectionnée(s)`;
 }
 
@@ -118,7 +147,11 @@ async function split() {
     for (const g of groups) {
       const doc = await PDFDocument.create();
       const pages = await doc.copyPages(src, g.map(p => p - 1));
-      pages.forEach(p => doc.addPage(p));
+      pages.forEach((p, k) => {
+        const extra = rotations.get(g[k]) || 0;
+        if (extra) p.setRotation(degrees((p.getRotation().angle + extra) % 360));
+        doc.addPage(p);
+      });
       const bytes = await doc.save();
       const name = `${srcName}_${label(g)}.pdf`;
       outputs.push({ name, bytes, url: URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })), pages: g.length });

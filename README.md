@@ -4,6 +4,7 @@ Application web 100 % côté client pour découper des PDF (aucun envoi de fichi
 
 ## Fonctions
 - Découpe par plages (`1-3, 4-6, 9`), pages sélectionnées sur miniatures, tous les N pages, une page par fichier
+- Rotation des pages (90° gauche/droite), par page ou pour toute la sélection
 - Téléchargement fichier par fichier ou en ZIP
 
 ## Utilisation
