@@ -11,6 +11,7 @@ Visualiseur avec miniatures à gauche, page courante en grand au centre, parties
 - **Réordonner** : glisser-déposer des miniatures (sur une page ou sur un ✂), ou boutons « Monter / Descendre » (Alt+← →)
 - **Fusion** : « Insérer des pages… » ouvre un second PDF, permet de choisir ses pages sur miniatures et de les insérer au début, après la page courante ou à la fin du document ouvert
 - Actions rapides : une page par fichier, couper toutes les N pages, effacer les coupures
+- **Optimisation du poids** : réduction des images JPEG (3 niveaux), avec calcul du poids avant/après par partie ; texte et vecteurs conservés
 - Téléchargement partie par partie ou en ZIP
 
 ## Utilisation
