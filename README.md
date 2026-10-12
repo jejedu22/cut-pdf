@@ -14,14 +14,18 @@ Visualiseur avec miniatures à gauche, page courante en grand au centre, parties
 - **Optimisation du poids** : réduction des images JPEG (3 niveaux), avec calcul du poids avant/après par partie ; texte et vecteurs conservés
 - Téléchargement partie par partie ou en ZIP
 
-## Utilisation
-Servir le dossier avec n'importe quel serveur statique, par ex. `python3 -m http.server 8000`, puis ouvrir http://localhost:8000.
-
-Bibliothèques embarquées dans `vendor/` : pdf-lib, pdf.js, JSZip.
+## Développement
+Application Vue 3 (composants monofichier) construite avec Vite ; PDF via pdf-lib, pdf.js et JSZip.
+```
+npm install
+npm run dev      # serveur de développement
+npm run build    # production dans dist/
+```
+Structure : `src/store.js` (état et actions), `src/components/` (viseur, miniatures, panneau, fenêtre d'insertion), `src/lib/` (optimisation, utilitaires).
 
 ## Docker + Traefik
 ```
 cp .env.example .env   # renseigner CUT_PDF_HOST (et, si besoin, réseau / entrypoint / certresolver)
 docker compose up -d --build
 ```
-Le conteneur (nginx non privilégié, port 8080) rejoint le réseau Docker externe de Traefik et est exposé en HTTPS via les labels de `docker-compose.yml`. Prérequis : un Traefik avec le provider Docker, un entrypoint `websecure` et un certresolver `letsencrypt` (ajustables via `.env`).
+L'image est construite en deux étapes (build Vite, puis nginx). Le conteneur (nginx non privilégié, port 8080) rejoint le réseau Docker externe de Traefik et est exposé en HTTPS via les labels de `docker-compose.yml`. Prérequis : un Traefik avec le provider Docker, un entrypoint `websecure` et un certresolver `letsencrypt` (ajustables via `.env`).
