@@ -10,9 +10,13 @@
   },
   "dependencies": {
     "jszip": "^3.10.2",
+    "mammoth": "^1.13.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "3.11.174",
-    "vue": "^3.5.43"
+    "turndown": "^7.2.4",
+    "turndown-plugin-gfm": "^1.0.2",
+    "vue": "^3.5.43",
+    "vue-router": "^5.4.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.10",
