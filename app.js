@@ -45,12 +45,13 @@ async function load(file) {
 const newSource = (name, pdf, bytes) => ({ name, pdf, bytes, doc: null, cache: new Map() });
 const newPage = (src, num) => ({ src, num, rot: 0, deleted: false, cut: false });
 
-const getPage = i => {
-  const e = pages[i - 1], s = sources[e.src];
+const getPageOf = e => {
+  const s = sources[e.src];
   if (!s.cache.has(e.num)) s.cache.set(e.num, s.pdf.getPage(e.num));
   return s.cache.get(e.num);
 };
-const rotationOf = (page, i) => (page.rotate + pages[i - 1].rot) % 360;
+const getPage = i => getPageOf(pages[i - 1]);
+const rotationOf = (page, e) => (page.rotate + e.rot) % 360;
 
 /* ---------- Parties ---------- */
 
@@ -79,13 +80,15 @@ function buildThumbs() {
   const box = $('thumbs'); box.replaceChildren();
   for (let i = 1; i <= pages.length; i++) {
     const d = document.createElement('div');
-    d.className = 'thumb'; d.dataset.page = i;
+    d.className = 'thumb'; d.dataset.page = i; d.draggable = true;
+    pages[i - 1].el = d;
     d.innerHTML = '<div class="ph"></div><div><span class="num"></span> <span class="rot"></span></div><div class="from"></div>';
     d.querySelector('.num').textContent = i;
     if (pages[i - 1].src) {
       const f = d.querySelector('.from');
       f.textContent = '📎 ' + sources[pages[i - 1].src].name; f.title = 'Insérée depuis ' + sources[pages[i - 1].src].name;
     }
+    if (pages[i - 1].thumb) d.querySelector('.ph').replaceChildren(pages[i - 1].thumb);
     d.onclick = () => goTo(i);
     box.appendChild(d);
     if (i < pages.length) {
@@ -100,19 +103,20 @@ function buildThumbs() {
 }
 
 async function renderThumb(i) {
-  const cell = document.querySelector(`.thumb[data-page="${i}"]`);
-  if (!cell) return;
-  const page = await getPage(i);
-  const vp = page.getViewport({ scale: 0.25, rotation: rotationOf(page, i) });
+  const e = pages[i - 1];
+  if (!e) return;
+  const page = await getPageOf(e);
+  const vp = page.getViewport({ scale: 0.25, rotation: rotationOf(page, e) });
   const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
   await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-  cell.querySelector('.ph').replaceChildren(c);
+  e.thumb = c;
+  e.el?.querySelector('.ph').replaceChildren(c);
 }
 
 async function renderAllThumbs(id) {
   for (let i = 1; i <= pages.length; i++) {
     if (id !== loadId) return;
-    await renderThumb(i);
+    if (!pages[i - 1].thumb) await renderThumb(i);
   }
 }
 
@@ -139,6 +143,7 @@ function refresh() {
   $('cutBtn').disabled = last; $('cutBtn').classList.toggle('on', st.cut && !last);
   $('delBtn').textContent = st.deleted ? '↩ Restaurer' : '🗑 Supprimer';
   $('delBtn').classList.toggle('on', st.deleted);
+  $('moveUp').disabled = cur <= 1; $('moveDown').disabled = last;
   $('cutLine').hidden = last;
   $('cutLine').classList.toggle('on', st.cut);
   $('cutLine').textContent = st.cut ? `✂ Coupure après la page ${cur} (cliquer pour retirer)` : `✂ Couper après la page ${cur}`;
@@ -215,6 +220,9 @@ $('zoomIn').onclick = () => setZoom(zoom * 1.25);
 $('zoomOut').onclick = () => setZoom(zoom / 1.25);
 $('zoomFit').onclick = () => setZoom(1);
 
+$('moveUp').onclick = () => movePage(cur, cur - 1);
+$('moveDown').onclick = () => movePage(cur, cur + 1);
+
 $('allL').onclick = () => rotateAll(-90);
 $('allR').onclick = () => rotateAll(90);
 $('cutAll').onclick = () => { pages.forEach((p, k) => p.cut = k < pages.length - 1); refresh(); };
@@ -227,8 +235,14 @@ $('clearCuts').onclick = () => { pages.forEach(p => p.cut = false); refresh(); }
 $('restore').onclick = () => { pages.forEach(p => p.deleted = false); refresh(); };
 
 document.addEventListener('keydown', e => {
-  if (!pages.length || !$('insertDlg').hidden || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if (!pages.length || !$('insertDlg').hidden || e.ctrlKey || e.metaKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   const k = e.key;
+  if (e.altKey) {
+    if (k === 'ArrowLeft' || k === 'ArrowUp') movePage(cur, cur - 1);
+    else if (k === 'ArrowRight' || k === 'ArrowDown') movePage(cur, cur + 1);
+    else return;
+    e.preventDefault(); return;
+  }
   if (k === 'ArrowLeft' || k === 'PageUp') goTo(cur - 1);
   else if (k === 'ArrowRight' || k === 'PageDown') goTo(cur + 1);
   else if (k === 'Home') goTo(1);
@@ -258,7 +272,7 @@ new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout((
 async function renderMain() {
   const i = cur, task = ++mainTask;
   const page = await getPage(i);
-  const rotation = rotationOf(page, i);
+  const rotation = rotationOf(page, pages[i - 1]);
   const base = page.getViewport({ scale: 1, rotation });
   const st = $('stage');
   const fit = Math.max(0.05, Math.min((st.clientWidth - 32) / base.width, (st.clientHeight - 32 - ($('cutLine').offsetHeight || 0) - 10) / base.height));
@@ -416,3 +430,79 @@ $('insertOk').onclick = () => {
   goTo(at + 1);
   renderAllThumbs(++loadId);
 };
+
+/* ---------- Déplacement de pages (glisser-déposer) ---------- */
+
+// Déplace la page `from` pour qu'elle devienne la page `to` (1-based).
+// Les coupures restent attachées aux emplacements (entre deux positions), pas aux pages :
+// une page déplacée au-delà d'une coupure change donc de partie.
+function movePage(from, to) {
+  if (from === to || to < 1 || to > pages.length) return;
+  const cuts = pages.map(p => p.cut);
+  pages.splice(to - 1, 0, ...pages.splice(from - 1, 1));
+  pages.forEach((p, i) => { p.cut = cuts[i]; });
+  buildThumbs();
+  goTo(to);
+}
+
+let dragFrom = 0, dropAt = null;      // dropAt = { gap, el, edge } : `gap` pages restent avant l'emplacement visé
+const thumbsBox = $('thumbs');
+const horizontal = () => getComputedStyle(thumbsBox).display === 'flex';
+
+function clearDrop() {
+  document.querySelectorAll('.drop-before,.drop-after,.drop-cut').forEach(n => n.classList.remove('drop-before', 'drop-after', 'drop-cut'));
+  dropAt = null;
+}
+
+thumbsBox.addEventListener('dragstart', e => {
+  const t = e.target.closest?.('.thumb');
+  if (!t) return;
+  dragFrom = +t.dataset.page;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(dragFrom));
+  t.classList.add('dragging');
+});
+
+thumbsBox.addEventListener('dragover', e => {
+  if (!dragFrom) return;
+  const t = e.target.closest('.thumb'), c = e.target.closest('.cut');
+  if (!t && !c) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  clearDrop();
+  if (t) {
+    const r = t.getBoundingClientRect();
+    const after = horizontal() ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+    const p = +t.dataset.page;
+    dropAt = { gap: after ? p : p - 1 };
+    t.classList.add(after ? 'drop-after' : 'drop-before');
+  } else {
+    dropAt = { gap: +c.dataset.after };
+    c.classList.add('drop-cut');
+  }
+});
+
+thumbsBox.addEventListener('dragleave', e => { if (!thumbsBox.contains(e.relatedTarget)) clearDrop(); });
+
+thumbsBox.addEventListener('drop', e => {
+  e.preventDefault();
+  const g = dropAt?.gap, from = dragFrom;
+  clearDrop(); dragFrom = 0;
+  if (g === undefined || !from) return;
+  movePage(from, g > from ? g : g + 1);
+});
+
+thumbsBox.addEventListener('dragend', () => {
+  dragFrom = 0; clearDrop();
+  document.querySelectorAll('.dragging').forEach(n => n.classList.remove('dragging'));
+});
+
+// Défilement automatique de la colonne pendant le glisser
+$('side').addEventListener('dragover', e => {
+  if (!dragFrom) return;
+  const r = $('side').getBoundingClientRect(), m = 48;
+  if (horizontal()) {
+    if (e.clientX < r.left + m) $('side').scrollLeft -= 12; else if (e.clientX > r.right - m) $('side').scrollLeft += 12;
+  } else if (e.clientY < r.top + m) $('side').scrollTop -= 12;
+  else if (e.clientY > r.bottom - m) $('side').scrollTop += 12;
+});

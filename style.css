@@ -73,6 +73,13 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute
 
 .thumb .from{font-size:11px;color:var(--p1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+/* Glisser-déposer */
+.thumb.dragging{opacity:.4}
+.thumb.drop-before{box-shadow:0 -4px 0 0 var(--accent)}
+.thumb.drop-after{box-shadow:0 4px 0 0 var(--accent)}
+.cut.drop-cut::before{border-color:var(--accent);border-top-width:4px}
+.thumb canvas{pointer-events:none}
+
 /* Fenêtre d'insertion */
 .modal{position:fixed;inset:0;z-index:10;background:rgba(10,12,16,.7);display:flex;align-items:center;justify-content:center;padding:16px}
 .dialog{background:var(--card);color:var(--fg);border-radius:12px;width:min(900px,100%);max-height:100%;display:flex;flex-direction:column;padding:16px 20px;gap:8px}
@@ -98,6 +105,8 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute
   .cut{width:22px;height:auto;margin:0}
   .cut::before{left:50%;right:auto;top:0;bottom:0;border-top:0;border-left:2px dashed var(--border)}
   .cut.on::before{border-left-style:solid}
+  .thumb.drop-before{box-shadow:-4px 0 0 0 var(--accent)}
+  .thumb.drop-after{box-shadow:4px 0 0 0 var(--accent)}
   .stage{height:62vh;flex:none}
   #panel{border-left:0;border-top:1px solid var(--border)}
 }
