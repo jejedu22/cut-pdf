@@ -41,6 +41,10 @@
         <button id="delBtn" class="btn" type="button" title="Supprimer / restaurer cette page (Suppr)">🗑 Supprimer</button>
       </div>
       <div class="grp">
+        <button id="insertBtn" class="btn" type="button" title="Insérer des pages d'un autre PDF">➕ Insérer des pages…</button>
+        <input id="insertFile" type="file" accept="application/pdf" hidden>
+      </div>
+      <div class="grp">
         <button id="zoomOut" class="btn" type="button" title="Zoom arrière (−)">−</button>
         <button id="zoomFit" class="btn" type="button" title="Ajuster à la fenêtre (0)"><span id="zoomLabel">100 %</span></button>
         <button id="zoomIn" class="btn" type="button" title="Zoom avant (+)">+</button>
@@ -74,6 +78,27 @@
     </div>
     <p class="hint">Raccourcis : ← → naviguer · R / Maj+R pivoter · C couper · Suppr supprimer · + − 0 zoom</p>
   </aside>
+</div>
+
+<div id="insertDlg" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="insertTitle">
+  <div class="dialog">
+    <h2 id="insertTitle"></h2>
+    <p class="hint">Cliquez sur les pages du document source à ajouter au document ouvert.</p>
+    <div class="row">
+      <button id="pickAll" class="btn" type="button">Tout sélectionner</button>
+      <button id="pickNone" class="btn" type="button">Tout désélectionner</button>
+      <span id="insertCount"></span>
+    </div>
+    <div id="insertThumbs" class="picks"></div>
+    <div class="row foot">
+      <label>Insérer
+        <select id="insertPos"></select>
+      </label>
+      <span class="spacer"></span>
+      <button id="insertCancel" class="btn" type="button">Annuler</button>
+      <button id="insertOk" class="btn primary" type="button">Insérer</button>
+    </div>
+  </div>
 </div>
 
 <script src="vendor/pdf-lib.min.js"></script>

@@ -8,6 +8,7 @@ Visualiseur avec miniatures à gauche, page courante en grand au centre, parties
 - **Rotation** ⟲ ⟳ par page ou pour tout le document
 - **Suppression / restauration** d'une page (touche `Suppr`)
 - **Zoom** (+ − 0, Ctrl + molette) et navigation (← →, saisie du numéro de page)
+- **Fusion** : « Insérer des pages… » ouvre un second PDF, permet de choisir ses pages sur miniatures et de les insérer au début, après la page courante ou à la fin du document ouvert
 - Actions rapides : une page par fichier, couper toutes les N pages, effacer les coupures
 - Téléchargement partie par partie ou en ZIP
 

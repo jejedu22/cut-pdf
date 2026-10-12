@@ -5,11 +5,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
 const $ = id => document.getElementById(id);
 const MAX_PIXELS = 16e6;
 
-let pdf = null, srcBytes = null, srcDoc = null, srcName = '';
-let pages = [];            // état par page : { rot, deleted, cut } (cut = coupure après cette page)
+let sources = [];          // documents ouverts : { name, pdf (pdf.js), bytes, doc (pdf-lib, paresseux), cache }
+let srcName = '';
+let pages = [];            // pages du document courant : { src, num, rot, deleted, cut } (cut = coupure après cette page)
 let cur = 1, zoom = 1;     // page courante (1-based), zoom relatif à « ajusté »
 let loadId = 0, mainTask = 0;
-const pageCache = new Map();
 
 /* ---------- Chargement ---------- */
 
@@ -30,24 +30,25 @@ async function load(file) {
   try { doc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise; }
   catch (e) { return alert('Impossible de lire ce PDF (fichier corrompu ou protégé par mot de passe).'); }
   fileInput.value = '';
-  pdf = doc; srcBytes = bytes; srcDoc = null;
+  sources = [newSource(file.name, doc, bytes)];
   srcName = file.name.replace(/\.pdf$/i, '');
-  pageCache.clear();
-  pages = Array.from({ length: pdf.numPages }, () => ({ rot: 0, deleted: false, cut: false }));
+  pages = Array.from({ length: doc.numPages }, (_, k) => newPage(0, k + 1));
   cur = 1; zoom = 1;
-  $('fileInfo').textContent = `${file.name} — ${pages.length} page${pages.length > 1 ? 's' : ''}`;
   $('fileInfo').hidden = false; $('reset').hidden = false;
   drop.hidden = true; $('app').hidden = false;
-  $('pageNum').max = pages.length; $('pageTotal').textContent = `/ ${pages.length}`;
   buildThumbs();
   refresh();
   goTo(1);
   renderAllThumbs(++loadId);
 }
 
+const newSource = (name, pdf, bytes) => ({ name, pdf, bytes, doc: null, cache: new Map() });
+const newPage = (src, num) => ({ src, num, rot: 0, deleted: false, cut: false });
+
 const getPage = i => {
-  if (!pageCache.has(i)) pageCache.set(i, pdf.getPage(i));
-  return pageCache.get(i);
+  const e = pages[i - 1], s = sources[e.src];
+  if (!s.cache.has(e.num)) s.cache.set(e.num, s.pdf.getPage(e.num));
+  return s.cache.get(e.num);
 };
 const rotationOf = (page, i) => (page.rotate + pages[i - 1].rot) % 360;
 
@@ -79,8 +80,12 @@ function buildThumbs() {
   for (let i = 1; i <= pages.length; i++) {
     const d = document.createElement('div');
     d.className = 'thumb'; d.dataset.page = i;
-    d.innerHTML = '<div class="ph"></div><div><span class="num"></span> <span class="rot"></span></div>';
+    d.innerHTML = '<div class="ph"></div><div><span class="num"></span> <span class="rot"></span></div><div class="from"></div>';
     d.querySelector('.num').textContent = i;
+    if (pages[i - 1].src) {
+      const f = d.querySelector('.from');
+      f.textContent = '📎 ' + sources[pages[i - 1].src].name; f.title = 'Insérée depuis ' + sources[pages[i - 1].src].name;
+    }
     d.onclick = () => goTo(i);
     box.appendChild(d);
     if (i < pages.length) {
@@ -128,7 +133,8 @@ function refresh() {
   document.querySelectorAll('.cut').forEach(c => c.classList.toggle('on', pages[+c.dataset.after - 1].cut));
 
   const st = pages[cur - 1], last = cur === pages.length;
-  $('pageNum').value = cur;
+  $('pageNum').value = cur; $('pageNum').max = pages.length; $('pageTotal').textContent = `/ ${pages.length}`;
+  $('fileInfo').textContent = `${srcName}.pdf — ${pages.length} page${pages.length > 1 ? 's' : ''}`;
   $('prev').disabled = cur <= 1; $('next').disabled = last;
   $('cutBtn').disabled = last; $('cutBtn').classList.toggle('on', st.cut && !last);
   $('delBtn').textContent = st.deleted ? '↩ Restaurer' : '🗑 Supprimer';
@@ -221,7 +227,7 @@ $('clearCuts').onclick = () => { pages.forEach(p => p.cut = false); refresh(); }
 $('restore').onclick = () => { pages.forEach(p => p.deleted = false); refresh(); };
 
 document.addEventListener('keydown', e => {
-  if (!pdf || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if (!pages.length || !$('insertDlg').hidden || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   const k = e.key;
   if (k === 'ArrowLeft' || k === 'PageUp') goTo(cur - 1);
   else if (k === 'ArrowRight' || k === 'PageDown') goTo(cur + 1);
@@ -245,7 +251,7 @@ $('stage').addEventListener('wheel', e => {
 }, { passive: false });
 
 let resizeTimer;
-new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => pdf && renderMain(), 150); }).observe($('stage'));
+new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => pages.length && renderMain(), 150); }).observe($('stage'));
 
 /* ---------- Rendu de la page courante ---------- */
 
@@ -270,15 +276,27 @@ async function renderMain() {
 
 /* ---------- Export ---------- */
 
+async function sourceDoc(k) {
+  const src = sources[k];
+  src.doc ||= await PDFDocument.load(src.bytes, { ignoreEncryption: true });
+  return src.doc;
+}
+
 async function buildPart(group) {
-  srcDoc ||= await PDFDocument.load(srcBytes, { ignoreEncryption: true });
   const doc = await PDFDocument.create();
-  const copied = await doc.copyPages(srcDoc, group.map(p => p - 1));
-  copied.forEach((pg, k) => {
-    const extra = pages[group[k] - 1].rot;
-    if (extra) pg.setRotation(degrees((pg.getRotation().angle + extra) % 360));
-    doc.addPage(pg);
-  });
+  // Copie par séries de pages consécutives issues du même document (évite de dupliquer les ressources).
+  for (let i = 0; i < group.length;) {
+    const k = pages[group[i] - 1].src;
+    let j = i; while (j < group.length && pages[group[j] - 1].src === k) j++;
+    const run = group.slice(i, j);
+    const copied = await doc.copyPages(await sourceDoc(k), run.map(p => pages[p - 1].num - 1));
+    copied.forEach((pg, n) => {
+      const extra = pages[run[n] - 1].rot;
+      if (extra) pg.setRotation(degrees((pg.getRotation().angle + extra) % 360));
+      doc.addPage(pg);
+    });
+    i = j;
+  }
   return doc.save();
 }
 
@@ -307,3 +325,94 @@ $('zip').onclick = e => withBusy(e.currentTarget, async () => {
   for (const g of computeParts()) zip.file(partName(g), await buildPart(g));
   saveBlob(await zip.generateAsync({ type: 'blob' }), `${srcName}_decoupe.zip`);
 });
+
+/* ---------- Insertion de pages d'un autre document ---------- */
+
+const dlg = $('insertDlg');
+let incoming = null;                 // { name, pdf, bytes } du document A
+const picked = new Set();
+
+$('insertBtn').onclick = () => $('insertFile').click();
+$('insertFile').addEventListener('change', async () => {
+  const file = $('insertFile').files[0];
+  $('insertFile').value = '';
+  if (!file) return;
+  if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) return alert('Veuillez choisir un fichier PDF.');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let doc;
+  try { doc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise; }
+  catch (e) { return alert('Impossible de lire ce PDF (fichier corrompu ou protégé par mot de passe).'); }
+  openInsertDialog(newSource(file.name, doc, bytes));
+});
+
+function openInsertDialog(src) {
+  incoming = src; picked.clear();
+  $('insertTitle').textContent = `Pages à insérer depuis « ${src.name} »`;
+  const sel = $('insertPos');
+  sel.replaceChildren(
+    new Option('Au début du document', '0'),
+    new Option(`Après la page courante (${cur})`, String(cur)),
+    new Option('À la fin du document', String(pages.length)));
+  sel.value = String(cur);
+  const box = $('insertThumbs'); box.replaceChildren();
+  for (let n = 1; n <= src.pdf.numPages; n++) {
+    const d = document.createElement('div');
+    d.className = 'pick'; d.dataset.num = n; d.tabIndex = 0; d.setAttribute('role', 'checkbox'); d.setAttribute('aria-checked', 'false');
+    d.innerHTML = '<div class="ph"></div><span></span>';
+    d.lastChild.textContent = `Page ${n}`;
+    const toggle = () => {
+      picked.has(n) ? picked.delete(n) : picked.add(n);
+      d.classList.toggle('sel', picked.has(n)); d.setAttribute('aria-checked', picked.has(n));
+      updateInsertCount();
+    };
+    d.onclick = toggle;
+    d.onkeydown = e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); } };
+    box.appendChild(d);
+  }
+  updateInsertCount();
+  dlg.hidden = false;
+  renderPickThumbs(src);
+}
+
+async function renderPickThumbs(src) {
+  for (let n = 1; n <= src.pdf.numPages; n++) {
+    if (incoming !== src) return;
+    const page = await src.pdf.getPage(n);
+    const vp = page.getViewport({ scale: 0.3 });
+    const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    document.querySelector(`.pick[data-num="${n}"] .ph`)?.replaceChildren(c);
+  }
+}
+
+function updateInsertCount() {
+  $('insertCount').textContent = `${picked.size} page(s) sélectionnée(s)`;
+  $('insertOk').disabled = picked.size === 0;
+}
+
+function closeInsertDialog() { dlg.hidden = true; incoming = null; $('insertThumbs').replaceChildren(); }
+
+$('pickAll').onclick = () => { for (let n = 1; n <= incoming.pdf.numPages; n++) picked.add(n); syncPicks(); };
+$('pickNone').onclick = () => { picked.clear(); syncPicks(); };
+function syncPicks() {
+  document.querySelectorAll('.pick').forEach(d => {
+    const on = picked.has(+d.dataset.num); d.classList.toggle('sel', on); d.setAttribute('aria-checked', on);
+  });
+  updateInsertCount();
+}
+$('insertCancel').onclick = closeInsertDialog;
+dlg.addEventListener('click', e => { if (e.target === dlg) closeInsertDialog(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !dlg.hidden) closeInsertDialog(); });
+
+$('insertOk').onclick = () => {
+  const idx = sources.push(incoming) - 1;
+  const at = parseInt($('insertPos').value, 10);        // nombre de pages qui précèdent
+  const added = [...picked].sort((a, b) => a - b).map(n => newPage(idx, n));
+  // Les pages insérées rejoignent la partie de la page qui les précède : la coupure éventuelle passe après elles.
+  if (at > 0 && pages[at - 1].cut) { added[added.length - 1].cut = true; pages[at - 1].cut = false; }
+  pages.splice(at, 0, ...added);
+  incoming = null; dlg.hidden = true; $('insertThumbs').replaceChildren();
+  buildThumbs();
+  goTo(at + 1);
+  renderAllThumbs(++loadId);
+};
