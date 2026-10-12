@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cut PDF – Découper un PDF</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>✂️ Cut PDF</h1>
+  <p class="sub">Découpez vos PDF directement dans le navigateur. Aucun fichier n'est envoyé sur un serveur.</p>
+
+  <label id="drop" class="drop" tabindex="0">
+    <input id="file" type="file" accept="application/pdf" hidden>
+    <strong>Déposez un PDF ici</strong> ou cliquez pour choisir un fichier
+  </label>
+
+  <section id="editor" hidden>
+    <div class="info"><span id="fileInfo"></span> <button id="reset" class="link">Changer de fichier</button></div>
+
+    <div class="panel">
+      <div class="row">
+        <label>Mode de découpe
+          <select id="mode">
+            <option value="ranges">Par plages (un fichier par plage)</option>
+            <option value="selection">Pages sélectionnées (un seul fichier)</option>
+            <option value="every">Tous les N pages</option>
+            <option value="single">Une page par fichier</option>
+          </select>
+        </label>
+        <label id="rangesBox">Plages
+          <input id="ranges" type="text" placeholder="ex. 1-3, 4-6, 9">
+        </label>
+        <label id="everyBox" hidden>N
+          <input id="every" type="number" min="1" value="1">
+        </label>
+      </div>
+      <div class="row" id="selTools" hidden>
+        <button id="selAll" class="link">Tout sélectionner</button>
+        <button id="selNone" class="link">Tout désélectionner</button>
+        <span id="selCount"></span>
+      </div>
+      <p class="hint" id="hint"></p>
+      <button id="go" class="primary">Découper</button>
+      <p id="error" class="error" hidden></p>
+    </div>
+
+    <section id="results" hidden>
+      <h2>Résultat</h2>
+      <button id="zip" class="primary">Tout télécharger (ZIP)</button>
+      <ul id="list"></ul>
+    </section>
+
+    <h2>Pages</h2>
+    <div id="thumbs" class="thumbs"></div>
+  </section>
+</main>
+
+<script src="vendor/pdf-lib.min.js"></script>
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
