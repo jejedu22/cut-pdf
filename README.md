@@ -13,3 +13,10 @@ Servir le dossier avec n'importe quel serveur statique, par ex. `python3 -m http
 Bibliothèques embarquées dans `vendor/` : pdf-lib, pdf.js, JSZip.
 
 Aperçu plein format d'une page (🔍 ou clic sur la miniature), navigation ◀ ▶ / flèches du clavier, rotation, Échap pour fermer.
+
+## Docker + Traefik
+```
+cp .env.example .env   # renseigner CUT_PDF_HOST (et, si besoin, réseau / entrypoint / certresolver)
+docker compose up -d --build
+```
+Le conteneur (nginx non privilégié, port 8080) rejoint le réseau Docker externe de Traefik et est exposé en HTTPS via les labels de `docker-compose.yml`. Prérequis : un Traefik avec le provider Docker, un entrypoint `websecure` et un certresolver `letsencrypt` (ajustables via `.env`).

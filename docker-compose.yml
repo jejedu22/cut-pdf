@@ -1,0 +1,27 @@
+services:
+  cut-pdf:
+    build: .
+    image: cut-pdf:latest
+    container_name: cut-pdf
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik}
+      - traefik.http.routers.cut-pdf.rule=Host(`${CUT_PDF_HOST:?définir CUT_PDF_HOST}`)
+      - traefik.http.routers.cut-pdf.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.cut-pdf.tls=true
+      - traefik.http.routers.cut-pdf.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      - traefik.http.services.cut-pdf.loadbalancer.server.port=8080
+
+networks:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-traefik}
+    external: true
