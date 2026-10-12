@@ -28,3 +28,4 @@ button{font:inherit;cursor:pointer}
 .thumb .btns{display:flex;gap:4px;justify-content:center;margin-top:4px}
 .thumb .btns button,.row>button:not(.link):not(.primary){border:1px solid var(--border);background:var(--bg);color:var(--fg);border-radius:6px;padding:2px 10px}
 .thumb .rot{color:var(--accent)}
+[hidden]{display:none!important}
