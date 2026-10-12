@@ -1,8 +1,14 @@
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY index.html vite.config.js ./
+COPY src ./src
+RUN npm run build
 
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY index.html app.js optimize.js style.css /usr/share/nginx/html/
-COPY vendor/ /usr/share/nginx/html/vendor/
+COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
