@@ -14,6 +14,12 @@ Visualiseur avec miniatures à gauche, page courante en grand au centre, parties
 - **Optimisation du poids** : réduction des images JPEG (3 niveaux), avec calcul du poids avant/après par partie ; texte et vecteurs conservés
 - Téléchargement partie par partie ou en ZIP
 
+## Convertir un document (page « Convertir un document », `#/convertir`)
+- Entrée : fichiers **.docx** (via mammoth) et **.odt** (lecture directe de `content.xml`)
+- Sortie au choix : **Markdown** (GFM : tableaux, barré, notes de bas de page `[^1]`) ou **HTML** (document complet ou fragment)
+- Images : intégrées en base64, ou fichiers séparés dans un ZIP (`images/`)
+- Aperçu du document, copie dans le presse-papiers, téléchargement ; tout se passe dans le navigateur
+
 ## Développement
 Application Vue 3 (composants monofichier) construite avec Vite ; PDF via pdf-lib, pdf.js et JSZip.
 ```
@@ -21,7 +27,7 @@ npm install
 npm run dev      # serveur de développement
 npm run build    # production dans dist/
 ```
-Structure : `src/store.js` (état et actions), `src/components/` (viseur, miniatures, panneau, fenêtre d'insertion), `src/lib/` (optimisation, utilitaires).
+Navigation par `vue-router` (historique « hash », aucune règle de réécriture nginx). Structure : `src/views/` (les deux pages), `src/store.js` (état et actions PDF), `src/lib/convert/` (conversion docx/odt → HTML → Markdown), `src/components/` (viseur, miniatures, panneau, fenêtre d'insertion), `src/lib/` (optimisation, utilitaires).
 
 ## Docker + Traefik
 ```

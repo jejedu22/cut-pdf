@@ -1,6 +1,11 @@
 <script setup>
 import { ref } from 'vue'
 
+defineProps({
+  accept: { type: String, default: 'application/pdf' },
+  title: { type: String, default: 'Déposez un PDF ici' },
+  hint: { type: String, default: "Vos fichiers restent dans votre navigateur : rien n'est envoyé sur un serveur." }
+})
 const emit = defineEmits(['file'])
 const input = ref(null)
 const over = ref(false)
@@ -27,8 +32,8 @@ defineExpose({ open: () => input.value.click() })
     @dragleave="over = false"
     @drop.prevent.stop="onDrop"
   >
-    <input id="file" ref="input" type="file" accept="application/pdf" hidden @change="onChange">
-    <strong>Déposez un PDF ici</strong> ou cliquez pour choisir un fichier
-    <small>Vos fichiers restent dans votre navigateur : rien n'est envoyé sur un serveur.</small>
+    <input id="file" ref="input" type="file" :accept="accept" hidden @change="onChange">
+    <strong>{{ title }}</strong> ou cliquez pour choisir un fichier
+    <small>{{ hint }}</small>
   </label>
 </template>
