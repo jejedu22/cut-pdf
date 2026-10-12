@@ -31,6 +31,7 @@ async function load(file) {
   catch (e) { return alert('Impossible de lire ce PDF (fichier corrompu ou protégé par mot de passe).'); }
   fileInput.value = '';
   sources = [newSource(file.name, doc, bytes)];
+  built.clear();
   srcName = file.name.replace(/\.pdf$/i, '');
   pages = Array.from({ length: doc.numPages }, (_, k) => newPage(0, k + 1));
   cur = 1; zoom = 1;
@@ -162,6 +163,12 @@ function renderParts(parts) {
     const s = document.createElement('span');
     s.textContent = `page${g.length > 1 ? 's' : ''} ${rangesLabel(g, ', ')} (${g.length})`;
     t.append(b, s);
+    const lvl = optLevel(), before = cachedSize(g, 0), after = cachedSize(g, lvl);
+    if (after !== undefined) {
+      const z = document.createElement('span'); z.className = 'size';
+      z.textContent = lvl && before ? `${fmtSize(before)} → ${fmtSize(after)} (${after <= before ? '−' : '+'}${Math.min(99, Math.abs(Math.round((1 - after / before) * 100)))} %)` : fmtSize(after);
+      t.append(z);
+    }
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'btn'; btn.textContent = '⬇'; btn.title = 'Télécharger cette partie';
     btn.onclick = () => downloadPart(g, btn);
@@ -296,7 +303,19 @@ async function sourceDoc(k) {
   return src.doc;
 }
 
-async function buildPart(group) {
+const built = new Map();            // `${niveau}|${signature}` -> octets du PDF produit
+const signature = g => g.map(p => { const e = pages[p - 1]; return `${e.src}.${e.num}.${e.rot}`; }).join(',');
+const optLevel = () => +$('optLevel').value;
+
+// PDF d'une partie au niveau d'optimisation demandé (mis en cache tant que la partie ne change pas)
+async function getPart(group, level = optLevel()) {
+  const key = `${level}|${signature(group)}`;
+  if (!built.has(key)) built.set(key, await buildPart(group, level));
+  return built.get(key);
+}
+const cachedSize = (g, level) => built.get(`${level}|${signature(g)}`)?.length;
+
+async function buildPart(group, level) {
   const doc = await PDFDocument.create();
   // Copie par séries de pages consécutives issues du même document (évite de dupliquer les ressources).
   for (let i = 0; i < group.length;) {
@@ -311,6 +330,7 @@ async function buildPart(group) {
     });
     i = j;
   }
+  await optimizeImages(doc, level);
   return doc.save();
 }
 
@@ -331,12 +351,12 @@ async function withBusy(btn, fn) {
 }
 
 const downloadPart = (g, btn) => withBusy(btn, async () => {
-  saveBlob(new Blob([await buildPart(g)], { type: 'application/pdf' }), partName(g));
+  saveBlob(new Blob([await getPart(g)], { type: 'application/pdf' }), partName(g));
 });
 
 $('zip').onclick = e => withBusy(e.currentTarget, async () => {
   const zip = new JSZip();
-  for (const g of computeParts()) zip.file(partName(g), await buildPart(g));
+  for (const g of computeParts()) zip.file(partName(g), await getPart(g));
   saveBlob(await zip.generateAsync({ type: 'blob' }), `${srcName}_decoupe.zip`);
 });
 
@@ -505,4 +525,21 @@ $('side').addEventListener('dragover', e => {
     if (e.clientX < r.left + m) $('side').scrollLeft -= 12; else if (e.clientX > r.right - m) $('side').scrollLeft += 12;
   } else if (e.clientY < r.top + m) $('side').scrollTop -= 12;
   else if (e.clientY > r.bottom - m) $('side').scrollTop += 12;
+});
+
+/* ---------- Optimisation du poids ---------- */
+
+const fmtSize = n => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} Mo` : `${Math.max(1, Math.round(n / 1024))} Ko`).replace('.', ',');
+
+for (const [lvl, o] of Object.entries(OPT_LEVELS)) $('optLevel').appendChild(new Option(o.label, lvl));
+$('optLevel').onchange = () => renderParts(computeParts());
+
+$('optimize').onclick = e => withBusy(e.currentTarget, async () => {
+  const parts = computeParts(), lvl = optLevel(), btn = e.currentTarget;
+  for (let k = 0; k < parts.length; k++) {
+    btn.textContent = `Calcul… ${k + 1}/${parts.length}`;
+    await getPart(parts[k], 0);
+    if (lvl) await getPart(parts[k], lvl);
+    renderParts(parts);
+  }
 });

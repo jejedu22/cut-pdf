@@ -110,3 +110,7 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute
   .stage{height:62vh;flex:none}
   #panel{border-left:0;border-top:1px solid var(--border)}
 }
+.parts .t .size{display:block;color:var(--fg);font-weight:600}
+.opt{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;color:var(--muted);font-size:13px}
+.opt select{font:inherit;padding:6px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);width:100%}
+#optimize{width:100%}
