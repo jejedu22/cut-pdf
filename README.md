@@ -11,3 +11,5 @@ Application web 100 % côté client pour découper des PDF (aucun envoi de fichi
 Servir le dossier avec n'importe quel serveur statique, par ex. `python3 -m http.server 8000`, puis ouvrir http://localhost:8000.
 
 Bibliothèques embarquées dans `vendor/` : pdf-lib, pdf.js, JSZip.
+
+Aperçu plein format d'une page (🔍 ou clic sur la miniature), navigation ◀ ▶ / flèches du clavier, rotation, Échap pour fermer.

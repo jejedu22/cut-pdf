@@ -50,6 +50,7 @@ async function renderPage(i) {
   const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
   await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
   cell.querySelector('.ph').replaceChildren(c);
+  if (previewPage === i) renderPreview();
   cell.querySelector('.rot').textContent = rotations.get(i) ? `↻ ${rotations.get(i)}°` : '';
 }
 
@@ -70,11 +71,12 @@ async function renderThumbs() {
   for (let i = 1; i <= pageCount; i++) {
     const d = document.createElement('div'); d.className = 'thumb'; d.dataset.page = i;
     d.innerHTML = `<div class="ph"></div>Page ${i} <span class="rot"></span>
-      <div class="btns"><button type="button" title="Pivoter à gauche">⟲</button><button type="button" title="Pivoter à droite">⟳</button></div>`;
-    const [l, r] = d.querySelectorAll('.btns button');
+      <div class="btns"><button type="button" title="Pivoter à gauche">⟲</button><button type="button" title="Pivoter à droite">⟳</button><button type="button" title="Aperçu">🔍</button></div>`;
+    const [l, r, z] = d.querySelectorAll('.btns button');
+    z.onclick = e => { e.stopPropagation(); openPreview(i); };
     l.onclick = e => { e.stopPropagation(); rotatePage(i, -90); };
     r.onclick = e => { e.stopPropagation(); rotatePage(i, 90); };
-    d.onclick = () => { if ($('mode').value !== 'selection') return; selected.has(i) ? selected.delete(i) : selected.add(i); refreshSel(); };
+    d.onclick = () => { if ($('mode').value !== 'selection') return openPreview(i); selected.has(i) ? selected.delete(i) : selected.add(i); refreshSel(); };
     box.appendChild(d);
   }
   const doc = pdfDoc;
@@ -182,3 +184,44 @@ async function downloadZip() {
   a.href = URL.createObjectURL(blob); a.download = `${srcName}_decoupe.zip`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+
+// ---- Aperçu plein format ----
+let previewPage = 0, previewTask = 0;
+const pv = $('preview');
+
+function openPreview(i) { previewPage = i; pv.hidden = false; document.body.style.overflow = 'hidden'; renderPreview(); }
+function closePreview() { previewPage = 0; pv.hidden = true; document.body.style.overflow = ''; }
+function stepPreview(d) {
+  const n = previewPage + d;
+  if (n >= 1 && n <= pageCount) { previewPage = n; renderPreview(); }
+}
+
+async function renderPreview() {
+  const i = previewPage, task = ++previewTask;
+  $('pvTitle').textContent = `Page ${i} / ${pageCount}` + (rotations.get(i) ? ` · ↻ ${rotations.get(i)}°` : '');
+  $('pvPrev').disabled = i <= 1; $('pvNext').disabled = i >= pageCount;
+  const page = await pdfDoc.getPage(i);
+  const rotation = (page.rotate + (rotations.get(i) || 0)) % 360;
+  const base = page.getViewport({ scale: 1, rotation });
+  const box = $('pvBody');
+  const fit = Math.min((box.clientWidth - 16) / base.width, (box.clientHeight - 16) / base.height);
+  const vp = page.getViewport({ scale: fit * (window.devicePixelRatio || 1), rotation });
+  const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+  c.style.width = vp.width / (window.devicePixelRatio || 1) + 'px';
+  await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+  if (task === previewTask && previewPage === i) box.replaceChildren(c);
+}
+
+$('pvClose').onclick = closePreview;
+$('pvPrev').onclick = () => stepPreview(-1);
+$('pvNext').onclick = () => stepPreview(1);
+$('pvRotL').onclick = () => rotatePage(previewPage, -90);
+$('pvRotR').onclick = () => rotatePage(previewPage, 90);
+pv.addEventListener('click', e => { if (e.target === pv || e.target === $('pvBody')) closePreview(); });
+document.addEventListener('keydown', e => {
+  if (pv.hidden) return;
+  if (e.key === 'Escape') closePreview();
+  else if (e.key === 'ArrowLeft') stepPreview(-1);
+  else if (e.key === 'ArrowRight') stepPreview(1);
+});
+window.addEventListener('resize', () => { if (!pv.hidden) renderPreview(); });

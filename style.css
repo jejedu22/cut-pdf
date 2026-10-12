@@ -29,3 +29,10 @@ button{font:inherit;cursor:pointer}
 .thumb .btns button,.row>button:not(.link):not(.primary){border:1px solid var(--border);background:var(--bg);color:var(--fg);border-radius:6px;padding:2px 10px}
 .thumb .rot{color:var(--accent)}
 [hidden]{display:none!important}
+.modal{position:fixed;inset:0;background:rgba(10,12,16,.85);display:flex;flex-direction:column;z-index:10}
+.mbar{display:flex;gap:8px;align-items:center;justify-content:center;padding:10px;color:#fff}
+.mbar button{border:1px solid #555;background:#2a2f38;color:#fff;border-radius:6px;padding:4px 12px}
+.mbar button:disabled{opacity:.35}
+.mbody{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px}
+.mbody canvas{background:#fff;box-shadow:0 4px 24px #000}
+.thumb canvas{cursor:zoom-in}

@@ -64,6 +64,18 @@
   </section>
 </main>
 
+<div id="preview" class="modal" hidden role="dialog" aria-modal="true" aria-label="Aperçu de la page">
+  <div class="mbar">
+    <button id="pvPrev" type="button">◀</button>
+    <span id="pvTitle"></span>
+    <button id="pvNext" type="button">▶</button>
+    <button id="pvRotL" type="button" title="Pivoter à gauche">⟲</button>
+    <button id="pvRotR" type="button" title="Pivoter à droite">⟳</button>
+    <button id="pvClose" type="button" title="Fermer (Échap)">✕</button>
+  </div>
+  <div id="pvBody" class="mbody"></div>
+</div>
+
 <script src="vendor/pdf-lib.min.js"></script>
 <script src="vendor/pdf.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
