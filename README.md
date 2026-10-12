@@ -3,16 +3,18 @@
 Application web 100 % côté client pour découper des PDF (aucun envoi de fichier).
 
 ## Fonctions
-- Découpe par plages (`1-3, 4-6, 9`), pages sélectionnées sur miniatures, tous les N pages, une page par fichier
-- Rotation des pages (90° gauche/droite), par page ou pour toute la sélection
-- Téléchargement fichier par fichier ou en ZIP
+Visualiseur avec miniatures à gauche, page courante en grand au centre, parties produites à droite.
+- **Ciseaux ✂** : entre deux miniatures, sous la page ou via le bouton « Couper ici » (touche `C`) ; chaque coupure ouvre une nouvelle partie (un fichier par partie)
+- **Rotation** ⟲ ⟳ par page ou pour tout le document
+- **Suppression / restauration** d'une page (touche `Suppr`)
+- **Zoom** (+ − 0, Ctrl + molette) et navigation (← →, saisie du numéro de page)
+- Actions rapides : une page par fichier, couper toutes les N pages, effacer les coupures
+- Téléchargement partie par partie ou en ZIP
 
 ## Utilisation
 Servir le dossier avec n'importe quel serveur statique, par ex. `python3 -m http.server 8000`, puis ouvrir http://localhost:8000.
 
 Bibliothèques embarquées dans `vendor/` : pdf-lib, pdf.js, JSZip.
-
-Aperçu plein format d'une page (🔍 ou clic sur la miniature), navigation ◀ ▶ / flèches du clavier, rotation, Échap pour fermer.
 
 ## Docker + Traefik
 ```
